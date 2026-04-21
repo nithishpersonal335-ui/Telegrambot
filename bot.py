@@ -2,17 +2,18 @@ import requests
 import time
 from flask import Flask
 import threading
+import os
 
-# ===== TELEGRAM =====
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"
+# ===== TELEGRAM (SAFE) =====
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 BOT_ACTIVE = False
 
 def send_msg(text):
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.get(url, params={"chat_id": CHAT_ID, "text": text})
+        requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=10)
     except:
         pass
 
@@ -20,7 +21,7 @@ def send_msg(text):
 def get_prices():
     try:
         url = "https://query1.finance.yahoo.com/v8/finance/chart/^NSEI?interval=5m&range=1d"
-        data = requests.get(url).json()
+        data = requests.get(url, timeout=10).json()
         closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
         return [c for c in closes if c]
     except:
@@ -65,26 +66,30 @@ last_update_id = None
 def check_commands():
     global BOT_ACTIVE, last_update_id
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
-    data = requests.get(url).json()
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+        data = requests.get(url, timeout=10).json()
 
-    for update in data["result"]:
-        uid = update["update_id"]
+        for update in data.get("result", []):
+            uid = update["update_id"]
 
-        if last_update_id and uid <= last_update_id:
-            continue
+            if last_update_id and uid <= last_update_id:
+                continue
 
-        last_update_id = uid
+            last_update_id = uid
 
-        msg = update.get("message", {}).get("text", "").lower()
+            msg = update.get("message", {}).get("text", "").lower()
 
-        if msg == "/on":
-            BOT_ACTIVE = True
-            send_msg("Bot ON ✅")
+            if msg == "/on":
+                BOT_ACTIVE = True
+                send_msg("Bot ON ✅")
 
-        elif msg == "/off":
-            BOT_ACTIVE = False
-            send_msg("Bot OFF 🛑")
+            elif msg == "/off":
+                BOT_ACTIVE = False
+                send_msg("Bot OFF 🛑")
+
+    except:
+        pass
 
 # ===== LOOP =====
 def run_bot():
